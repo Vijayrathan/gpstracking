@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "1009892538678",
+    "project_id": "socialdistancing-95bd1",
+    "storage_bucket": "socialdistancing-95bd1.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1009892538678:android:6e8c9a12108c05e8169b97",
+        "android_client_info": {
+          "package_name": "com.example.gpstracking"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1009892538678-k2a7684a1sbipsmb430kiqot88fkoeug.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDljNx_Zr61PyH8_QmPdOVm4lwMWWD-Mt4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1009892538678-k2a7684a1sbipsmb430kiqot88fkoeug.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
