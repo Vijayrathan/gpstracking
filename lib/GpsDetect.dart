@@ -1,12 +1,10 @@
 import 'dart:async';
-import 'dart:isolate';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:geofencing/geofencing.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:gpstracking/main.dart';
-
+import 'package:geodesy/geodesy.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 class Gps extends StatefulWidget {
   final token;
@@ -16,14 +14,19 @@ class Gps extends StatefulWidget {
 }
 
 class _GpsState extends State<Gps> {
-  String geofenceState = 'N/A';
-  List<String> registeredGeofences = [];
-  double latitude ;
+  double latitude;
   double longitude;
   double radius = 10.0;
-  final firestore=FirebaseFirestore.instance;
+  final firestore = FirebaseFirestore.instance;
+  Geodesy geodesy = Geodesy();
+  List<LatLng> geofencedPoints = [];
+  var resListLat = [];
+  var resListLong = [];
+  var id;
+  FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+  FlutterLocalNotificationsPlugin();
 
-  Future<dynamic> currentLoc()async{
+  Future<dynamic> currentLoc() async {
     await Geolocator.requestPermission();
     try {
       Position position = await Geolocator.getCurrentPosition(
@@ -34,56 +37,103 @@ class _GpsState extends State<Gps> {
     } catch (e) {
       print(e);
     }
-    firestore.collection("gps").add({
-      "latitude": latitude,
-      "longitude": longitude,
-      "timestamp": DateTime.now(),
-      "id": token
+    if (latitude != null && longitude != null) {
+      firestore.collection("gps").add({
+        "latitude": latitude,
+        "longitude": longitude,
+        "timestamp": DateTime.now().hour,
+        "id": token
+      });
+    } else {
+      print(Exception("Null lat and long"));
+    }
+  }
+
+  Future<List<LatLng>> tracker() async {
+    var result = await firestore
+        .collection("gps")
+        .where("timestamp", isEqualTo: DateTime.now().hour)
+        .get();
+    result.docs.forEach((res) async {
+      resListLat.add(res.data()["latitude"]);
+      resListLong.add(res.data()["longitude"]);
+    });
+    print(resListLat);
+    print(resListLong);
+  }
+
+  List<LatLng> fetch() {
+    for (int item = 0; item < resListLat.length; item++) {
+      final point = LatLng(latitude, longitude);
+      print(point);
+      final pointsToCheck = <LatLng>[
+        LatLng(resListLat[item], resListLong[item])
+      ];
+      final distance = 5;
+      geofencedPoints =
+          geodesy.pointsInRange(point, pointsToCheck, distance).toList();
+      print(geofencedPoints);
+    }
+  }
+
+  dynamic result() async {
+    var col = await firestore
+        .collection("gps")
+        .where("timestamp", isEqualTo: DateTime.now().hour)
+        .get();
+    col.docs.forEach((element) async{
+      for (int i = 0; i < geofencedPoints.length; i++) {
+        if (geofencedPoints[i] ==
+            LatLng(element.data()["latitude"], element.data()["longitude"])) {
+            id = await element.data()["id"];
+          if(id==token){
+            print("Only you");
+          }
+          else{
+             return id;
+          }
+        }
+        else{
+          print("No-onee");
+        }
+      }
     });
   }
-  ReceivePort port = ReceivePort();
-  final List<GeofenceEvent> triggers = <GeofenceEvent>[
-    GeofenceEvent.enter,
-    GeofenceEvent.dwell,
-    GeofenceEvent.exit
-  ];
-  final AndroidGeofencingSettings androidSettings = AndroidGeofencingSettings(
-      initialTrigger: <GeofenceEvent>[
-        GeofenceEvent.enter,
-        GeofenceEvent.exit,
-        GeofenceEvent.dwell
-      ],
-      loiteringDelay: 1000 * 60);
+  Future onSelectNotification(String payload) {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) {
+      return NewScreen(
+        payload: payload,
+      );
+    }));
+  }
+
+    showNotification() async {
+      var android = new AndroidNotificationDetails(
+          'id', 'channel ', 'description',
+          priority: Priority.high, importance: Importance.max);
+      var iOS = new IOSNotificationDetails();
+      var platform = new NotificationDetails(android:android);
+      await flutterLocalNotificationsPlugin.show(
+          0, 'Social distancing', 'You are not following social distancing', platform,
+          payload: 'Welcome to the Local Notification demo ');
+    }
+
 
   @override
   void initState() {
+    // TODO: implement initState
     super.initState();
+    var initializationSettingsAndroid =
+    AndroidInitializationSettings('@mipmap/ic_launcher');
+    var initializationSettingsIOs = IOSInitializationSettings();
+    var initSetttings = InitializationSettings(android:
+        initializationSettingsAndroid);
+
+    flutterLocalNotificationsPlugin.initialize(initSetttings,
+        onSelectNotification: onSelectNotification);
     currentLoc();
-    IsolateNameServer.registerPortWithName(
-        port.sendPort, 'geofencing_send_port');
-    port.listen((dynamic data) {
-      print('Event: $data');
-      setState(() {
-        geofenceState = data;
-      });
-    });
-    initPlatformState();
+    tracker();
   }
-
-  static void callback(List<String> ids, Location l, GeofenceEvent e) async {
-    print('Fences: $ids Location $l Event: $e');
-    final SendPort send =
-    IsolateNameServer.lookupPortByName('geofencing_send_port');
-    send?.send(e.toString());
-  }
-
-  // Platform messages are asynchronous, so we initialize in an async method.
-  Future<void> initPlatformState() async {
-    print('Initializing...');
-    await GeofencingManager.initialize();
-    print('Initialization done');
-  }
-
 
   @override
   Widget build(BuildContext context) {
@@ -97,49 +147,33 @@ class _GpsState extends State<Gps> {
               child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: <Widget>[
-                    Text('Current state: $geofenceState'),
+                    Text('Current state:'),
                     Center(
                       child: RaisedButton(
-                        child: const Text('Register'),
-                        onPressed: () {
-                          if (latitude == null) {
-                            setState(() => latitude = 0.0);
-                          }
-                          if (longitude == null) {
-                            setState(() => longitude = 0.0);
-                          }
-                          if (radius == null) {
-                            setState(() => radius = 0.0);
-                          }
-                          GeofencingManager.registerGeofence(
-                              GeofenceRegion(
-                                  'mtv', latitude, longitude, radius, triggers,
-                                  androidSettings: androidSettings),
-                              callback).then((_) {
-                            GeofencingManager.getRegisteredGeofenceIds().then((value) {
-                              setState(() {
-                                registeredGeofences = value;
-                              });
-                            });
-                          });
-                        },
-                      ),
-                    ),
-                    Text('Registered Geofences: $registeredGeofences'),
-                    Center(
-                      child: RaisedButton(
-                        child: const Text('Unregister'),
-                        onPressed: () =>
-                            GeofencingManager.removeGeofenceById('mtv').then((_) {
-                              GeofencingManager.getRegisteredGeofenceIds().then((value){
-                                setState(() {
-                                  registeredGeofences = value;
-                                });
-                              });
-                            }),
-                      ),
+                          child: const Text('Register'),
+                          onPressed: () async{
+                            fetch();
+                            result();
+                           await showNotification();
+                          }),
                     ),
                   ]))),
+    );
+  }
+}
+class NewScreen extends StatelessWidget {
+  String payload;
+
+  NewScreen({
+    @required this.payload,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(payload),
+      ),
     );
   }
 }

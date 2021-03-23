@@ -2,11 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/rendering.dart';
 import './GpsDetect.dart';
 import 'package:workmanager/workmanager.dart';
 import 'package:geolocator/geolocator.dart';
 
-
+double latitude;
+double longitude;
+final firestore = FirebaseFirestore.instance;
+var email;
+var password;
+var token;
+const fetchBackground = "fetchBackground";
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,55 +22,50 @@ void main() async {
     isInDebugMode: true,
   );
 
-  Workmanager.registerPeriodicTask(
-    "1",
-    fetchBackground,
-    frequency: Duration(minutes: 2),
-  );
+  Workmanager.registerPeriodicTask("1", fetchBackground,
+      frequency: Duration(minutes: 15),
+      initialDelay: Duration(seconds: 20));
   await Firebase.initializeApp();
 
   runApp(MaterialApp(initialRoute: 'first', routes: {
-    'first':(context)=>MyApp(),
-    'second':(context)=>Gps(token)
+    'first': (context) => MyApp(),
+    'second': (context) => Gps(token)
   }));
 }
-double latitude;
-double longitude;
-final firestore=FirebaseFirestore.instance;
-var email;
-var password;
-var token;
-const fetchBackground = "fetchBackground";
+
 void callbackDispatcher() {
   Workmanager.executeTask((task, inputData) async {
     switch (task) {
       case fetchBackground:
-        await Geolocator.requestPermission();
-        try {
-          Position position = await Geolocator.getCurrentPosition(
-              desiredAccuracy: LocationAccuracy.bestForNavigation);
-          latitude = position.latitude;
-          longitude = position.longitude;
-          //print(latitude);
-        } catch (e) {
-          print(e);
-        }
-        firestore.collection("gps").add({
-          "latitude": latitude,
-          "longitude": longitude,
-          "timestamp": DateTime.now(),
-          "id": token
-        });
+        getLocation();
         break;
     }
     return Future.value(true);
   });
 }
 
+void getLocation() async {
+  Geolocator.isLocationServiceEnabled().then((value) async{
+    try {
+      Position position = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.bestForNavigation);
+      latitude = position.latitude;
+      longitude = position.longitude;
+      //print(latitude);
+    } catch (e) {
+      print(e);
+    }
+    firestore.collection("gps").add({
+      "latitude": latitude,
+      "longitude": longitude,
+      "timestamp": DateTime.now(),
+      "id": token
+    });
+  });
+}
 
 class MyApp extends StatelessWidget {
   final _auth = FirebaseAuth.instance;
-
 
   @override
   Widget build(BuildContext context) {
