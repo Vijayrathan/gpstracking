@@ -6,6 +6,9 @@ import 'package:flutter/rendering.dart';
 import './GpsDetect.dart';
 import 'package:workmanager/workmanager.dart';
 import 'package:geolocator/geolocator.dart';
+import './regUser.dart';
+import './mapsView.dart';
+
 
 double latitude;
 double longitude;
@@ -29,7 +32,9 @@ void main() async {
 
   runApp(MaterialApp(initialRoute: 'first', routes: {
     'first': (context) => MyApp(),
-    'second': (context) => Gps(token)
+    'second': (context) => Gps(token),
+    'reg':(context)=>Register(),
+    'map':(context)=>Maps()
   }));
 }
 
@@ -186,7 +191,7 @@ class MyApp extends StatelessWidget {
                       child: RaisedButton(
                         child: Text("New User!! Register Here"),
                         onPressed: () {
-                          Navigator.pushNamed(context, "Main");
+                          Navigator.pushNamed(context, "reg");
                         },
                       ),
                     )

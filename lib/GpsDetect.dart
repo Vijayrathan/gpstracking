@@ -90,7 +90,7 @@ class _GpsState extends State<Gps> {
             print("Only you");
           }
           else{
-             return id;
+             print(id) ;
           }
         }
         else{
@@ -155,6 +155,7 @@ class _GpsState extends State<Gps> {
                             fetch();
                             result();
                            await showNotification();
+                           Navigator.pushNamed(context, 'map');
                           }),
                     ),
                   ]))),
